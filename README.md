@@ -109,7 +109,8 @@ React, Express, MySQL을 활용하여 개발한 **인스타그램 스타일의 S
 - 정규표현식을 활용한 @멘션 탐지 및 하이라이팅 처리
 
 ### 5. ➕ 게시물 업로드
-![image](https://github.com/user-attachments/assets/da709f1f-3247-44fd-ae4e-d07a62ecc603)
+![image](https://github.com/user-attachments/assets/24681d22-9b38-405c-80ed-8c4ad73ca990)
+
 
 ### 구현 기능
 - 사이드바 `업로드` 버튼 클릭 시 업로드 모달 열림
