@@ -1,6 +1,6 @@
-# Getting Started with Create React App
+#Express 서버, REACT를 활용한 SNS 페이지 제작
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+💡 프로젝트 소개
 
 ## Available Scripts
 
