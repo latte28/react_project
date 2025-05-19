@@ -1,7 +1,9 @@
 # 🐾 Dogstagram - React & Express 기반 SNS
 
+![image](https://github.com/user-attachments/assets/c70c265c-62ef-4700-b115-51382c5c3978)
+
 ## 💡 프로젝트 소개
-Dogstagram은 **React**, **Express**, **MySQL**을 활용하여 개발한 인스타그램 스타일의 SNS 웹 애플리케이션입니다.  
+**React**, **Express**, **MySQL**을 활용하여 개발한 인스타그램 스타일의 SNS 웹 애플리케이션입니다.  
 제한된 시간 내 기능 중심의 구현을 목표로 하였으며, UI는 인스타그램을 참고하여 설계하였습니다.
 
 ---
@@ -15,7 +17,7 @@ Dogstagram은 **React**, **Express**, **MySQL**을 활용하여 개발한 인스
 
 | 이름     | GitHub 프로필                          |
 |----------|----------------------------------------|
-| 박재원   | ((https://github.com/latte28)) |
+| 박재원   | (https://github.com/latte28) |
 
 ## 🛠️ 기술 스택
 
