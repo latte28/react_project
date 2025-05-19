@@ -1,0 +1,184 @@
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #f9f9f9;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: #000;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 기본 레이아웃 스타일 */
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* 밝은 Swiper 버튼 반전 */
+body.light .swiper-button-next,
+body.light .swiper-button-prev {
+  filter: invert(1);
+}
+
+/* Swiper 기본 버튼 숨김 및 위치 고정 */
+.swiper-button-next,
+.swiper-button-prev {
+  opacity: 0 !important;
+  width: 40px !important;
+  height: 40px !important;
+  pointer-events: auto !important;
+  position: absolute !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  z-index: 10;
+  background: none !important;
+  border: none !important;
+}
+
+.swiper-button-next::after,
+.swiper-button-prev::after {
+  content: "" !important;
+  display: none !important;
+}
+
+body.dark {
+  background-color: #121212;
+  color: #f5f5f5;
+}
+
+body.dark .App-header {
+  background-color: #1e1e1e;
+  color: #fff;
+}
+
+body.dark .MuiPaper-root {
+  background-color: #1e1e1e !important;
+  color: #fff !important;
+}
+
+body.dark input,
+body.dark textarea {
+  background-color: #222;
+  color: #fff;
+}
+
+body.dark .MuiBottomNavigation-root {
+  background-color: #000 !important;
+  color: #fff !important;
+}
+
+/* 프로필 페이지 */
+body.dark .profile-page {
+  background-color: #000;
+  color: #fff;
+}
+body.light .profile-page {
+  background-color: #f9f9f9;
+  color: #000;
+}
+
+/* 프로필 편집 버튼 */
+body.dark .profile-edit-btn {
+  background-color: #262626;
+  color: #fff;
+}
+body.light .profile-edit-btn {
+  background-color: #e0e0e0;
+  color: #000;
+}
+
+/* 모달 공통 */
+.profile-modal,
+.feed-detail-modal,
+.upload-modal {
+  width: 90%;
+  max-width: 600px;
+  margin: 5vh auto;
+  padding: 24px;
+  border-radius: 16px;
+  outline: none;
+}
+body.dark .profile-modal,
+body.dark .feed-detail-modal,
+body.dark .upload-modal {
+  background-color: #111;
+  color: #fff;
+}
+body.light .profile-modal,
+body.light .feed-detail-modal,
+body.light .upload-modal {
+  background-color: #fff;
+  color: #000;
+}
+
+/* ✅ 다크모드 강제 초기화 */
+body.dark textarea {
+  background-color: #fff !important;
+  color: #000 !important;
+  caret-color: #000 !important;
+}
+
+/* ✅ 다크모드에서도 force-light 영역은 완전 밝게 */
+body.dark .force-light input,
+body.dark .force-light textarea {
+  background-color: #fff !important;
+  color: #000 !important;
+  caret-color: #000 !important;
+}
+
+body.dark .force-light .MuiInputBase-root {
+  background-color: #fff !important;
+  color: #000 !important;
+}
+
+body.dark .force-light .MuiInputBase-input {
+  color: #000 !important;
+}
+
+body.dark .force-light .MuiInputLabel-root {
+  color: #000 !important;
+}
+
+body.dark .force-light .MuiOutlinedInput-notchedOutline {
+  border-color: #ccc !important; /* ✅ 테두리 밝게 */
+}
+
+body.dark .force-light .MuiPaper-root {
+  background-color: #fff !important;
+  color: #000 !important;
+}
+
+body.dark .force-light .MuiButton-root {
+  color: #fff !important;
+  background-color: #3f51b5 !important; /* 기본 primary */
+}
