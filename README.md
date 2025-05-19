@@ -15,7 +15,7 @@ Dogstagram은 **React**, **Express**, **MySQL**을 활용하여 개발한 인스
 
 | 이름     | GitHub 프로필                          |
 |----------|----------------------------------------|
-| 박재   | [https://github.com/lssssssssssssss]((https://github.com/latte28)) |
+| 박재원   | ((https://github.com/latte28)) |
 
 ## 🛠️ 기술 스택
 
