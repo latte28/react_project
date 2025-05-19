@@ -3,7 +3,6 @@ import { Box, Typography, IconButton, Menu, MenuItem } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import DeleteIcon from "@mui/icons-material/Delete";
 
-
 function DmMessageBubble({ message, isMe, onDelete }) {
   const [anchorEl, setAnchorEl] = useState(null);
   const [hover, setHover] = useState(false);
@@ -13,7 +12,6 @@ function DmMessageBubble({ message, isMe, onDelete }) {
 
   const handleOpenMenu = (e) => setAnchorEl(e.currentTarget);
   const handleCloseMenu = () => setAnchorEl(null);
-
 
   const handleDelete = () => {
     handleCloseMenu();
@@ -65,7 +63,7 @@ function DmMessageBubble({ message, isMe, onDelete }) {
       >
         {/* ✅ 이미지/영상 */}
         {message.mediaUrl && (
-          <Box sx={{ mb: message.content ? 1 : 0 }}>
+          <Box sx={{ mb: message.content?.trim() ? 1 : 0 }}>
             {isImage ? (
               <img
                 src={`${SERVER_URL}${message.mediaUrl}`}
@@ -83,7 +81,7 @@ function DmMessageBubble({ message, isMe, onDelete }) {
         )}
 
         {/* ✅ 텍스트 메시지 */}
-        {message.content && (
+        {typeof message.content === "string" && (
           <Typography variant="body2">{message.content}</Typography>
         )}
       </Box>
@@ -93,11 +91,9 @@ function DmMessageBubble({ message, isMe, onDelete }) {
         open={Boolean(anchorEl)}
         onClose={handleCloseMenu}
       >
-        {message.content && (
-          <MenuItem onClick={handleDelete}>
-            <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> 삭제
-          </MenuItem>
-        )}
+        <MenuItem onClick={handleDelete}>
+          <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> 삭제
+        </MenuItem>
       </Menu>
     </Box>
   );

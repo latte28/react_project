@@ -10,6 +10,7 @@ function DmChat({ roomId, toUserId: initialToUserId, onUnreadIncrement, onUnread
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [file, setFile] = useState(null);
+  const [isSocketReady, setIsSocketReady] = useState(false);
   const fileInputRef = useRef(null);
   const [toUserId, setToUserId] = useState(initialToUserId || null);
   const socketRef = useRef(null);
@@ -19,6 +20,7 @@ function DmChat({ roomId, toUserId: initialToUserId, onUnreadIncrement, onUnread
   const token = localStorage.getItem("token");
   const currentUserId = jwtDecode(token).userId;
 
+  // 상대방 ID 가져오기
   useEffect(() => {
     if (!initialToUserId) {
       fetch(`http://localhost:3003/dm/partner/${roomId}`, {
@@ -35,15 +37,14 @@ function DmChat({ roomId, toUserId: initialToUserId, onUnreadIncrement, onUnread
     }
   }, [roomId, initialToUserId, token]);
 
+  // 메시지 & 읽음 처리
   useEffect(() => {
     fetch(`http://localhost:3003/dm/messages/${roomId}`, {
       headers: { Authorization: "Bearer " + token },
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data.success) {
-          setMessages(data.messages);
-        }
+        if (data.success) setMessages(data.messages);
       });
 
     fetch(`http://localhost:3003/dm/mark-read/${roomId}`, {
@@ -52,62 +53,108 @@ function DmChat({ roomId, toUserId: initialToUserId, onUnreadIncrement, onUnread
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data.success && onUnreadClear) {
-          onUnreadClear();
-        }
+        if (data.success && onUnreadClear) onUnreadClear();
       });
+  }, [roomId, token, onUnreadClear]);
 
-    socketRef.current = new WebSocket(`ws://localhost:3003?token=${token}`);
+  // WebSocket 연결
+  useEffect(() => {
+    let reconnectTimer;
 
-    socketRef.current.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+    const connectSocket = () => {
+      const socket = new WebSocket(`ws://localhost:3003?token=${token}`);
+      socketRef.current = socket;
 
-      if (data.type === "dm") {
-        if (String(data.roomId) === String(roomId)) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              ...data,
-              createdAt: data.createdAt || new Date().toISOString(),
-            },
-          ]);
+      socket.onopen = () => {
+        console.log("🟢 WebSocket 연결됨");
+        setIsSocketReady(true);
+      };
 
-          // 실시간 읽음 처리 요청
-          fetch(`http://localhost:3003/dm/mark-read/${roomId}`, {
-            method: "PUT",
-            headers: { Authorization: `Bearer ${token}` },
-          }).then(() => {
-            if (onUnreadClear) onUnreadClear();
-          });
-        } else if (data.toUserId === currentUserId) {
-          if (onUnreadIncrement) {
-            onUnreadIncrement();
+      socket.onclose = (e) => {
+        console.warn("🔌 WebSocket 연결 종료:", e.code, e.reason);
+        setIsSocketReady(false);
+
+        if (e.code === 4000) {
+          reconnectTimer = setTimeout(() => {
+            console.log("🔁 WebSocket 재연결 시도...");
+            connectSocket();
+          }, 100); // 100ms 후 재연결
+        }
+      };
+
+      socket.onerror = (err) => {
+        console.error("🔴 WebSocket 오류:", err);
+      };
+
+      socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        console.log("📨 수신:", data);
+
+        if (data.type === "dm") {
+          if (String(data.roomId) === String(roomId)) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                ...data,
+                createdAt: data.createdAt || new Date().toISOString(),
+              },
+            ]);
+            fetch(`http://localhost:3003/dm/mark-read/${roomId}`, {
+              method: "PUT",
+              headers: { Authorization: `Bearer ${token}` },
+            }).then(() => {
+              if (onUnreadClear) onUnreadClear();
+            });
+          } else if (data.toUserId === currentUserId) {
+            if (onUnreadIncrement) onUnreadIncrement();
           }
         }
-      }
 
-      if (data.type === "dm-delete" && String(data.roomId) === String(roomId)) {
-        setMessages((prev) =>
-          prev.filter((msg) => msg.messageId !== data.messageId)
-        );
-      }
+        if (data.type === "dm-delete" && String(data.roomId) === String(roomId)) {
+          setMessages((prev) =>
+            prev.filter((msg) => msg.messageId !== data.messageId)
+          );
+        }
+      };
     };
+
+    // 기존 연결 정리
+    if (socketRef.current) {
+      socketRef.current.onopen = null;
+      socketRef.current.onclose = null;
+      socketRef.current.onmessage = null;
+      socketRef.current.onerror = null;
+
+      if (socketRef.current.readyState === WebSocket.OPEN) {
+        socketRef.current.close(4000, "replaced by new connection");
+      }
+    }
+
+    connectSocket();
 
     return () => {
-      if (socketRef.current) {
-        socketRef.current.onmessage = null;
-        socketRef.current.close();
+      clearTimeout(reconnectTimer);
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        socketRef.current.close(4001, "component unmounted");
       }
+      socketRef.current = null;
+      setIsSocketReady(false);
     };
-  }, [roomId, token, currentUserId, onUnreadIncrement, onUnreadClear]);
+  }, [roomId, token]);
 
   const sendMessage = async () => {
+    const socket = socketRef.current;
+
     if (
+      !socket ||
+      !isSocketReady ||
+      socket.readyState !== WebSocket.OPEN ||
       (!input.trim() && !file) ||
-      !toUserId ||
-      socketRef.current.readyState !== WebSocket.OPEN
-    )
+      !toUserId
+    ) {
+      console.warn("🚫 WebSocket 준비 안 됨 → 메시지 전송 중단");
       return;
+    }
 
     let mediaUrl = "";
     let mediaType = "";
@@ -118,9 +165,7 @@ function DmChat({ roomId, toUserId: initialToUserId, onUnreadIncrement, onUnread
 
       const res = await fetch("http://localhost:3003/dm/upload", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
 
@@ -142,17 +187,21 @@ function DmChat({ roomId, toUserId: initialToUserId, onUnreadIncrement, onUnread
       mediaType,
     };
 
-    socketRef.current.send(JSON.stringify(message));
+    console.log("📤 전송 요청:", message);
+    socket.send(JSON.stringify(message));
     setInput("");
   };
 
   const handleDeleteMessage = async (messageId) => {
+    const socket = socketRef.current;
+    if (!socket || !isSocketReady || socket.readyState !== WebSocket.OPEN) return;
+
     const msg = {
       type: "dm-delete",
       roomId,
       messageId,
     };
-    socketRef.current.send(JSON.stringify(msg));
+    socket.send(JSON.stringify(msg));
   };
 
   useEffect(() => {
@@ -242,8 +291,8 @@ function DmChat({ roomId, toUserId: initialToUserId, onUnreadIncrement, onUnread
                 <IconButton onClick={() => fileInputRef.current?.click()}>
                   <ImageIcon sx={{ color: textColor }} />
                 </IconButton>
-                <IconButton onClick={sendMessage}>
-                  <SendIcon sx={{ color: "#3797f0" }} />
+                <IconButton onClick={sendMessage} disabled={!isSocketReady}>
+                  <SendIcon sx={{ color: isSocketReady ? "#3797f0" : "#aaa" }} />
                 </IconButton>
               </InputAdornment>
             ),

@@ -49,8 +49,7 @@ function Main() {
   const [recommendedUsers, setRecommendedUsers] = useState([]);
   const [userInfo, setUserInfo] = useState(null); // 로그인 정보
   const [notificationKey, setNotificationKey] = useState(Date.now());
-
-
+  const [notiCount, setNotiCount] = useState(0);
   const fetchPosts = () => {
     const token = localStorage.getItem("token");
 
@@ -145,7 +144,10 @@ function Main() {
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data.success) setUnreadCount(data.count);
+        if (data.success) {
+        setUnreadCount(data.dmCount); // ✅ 오직 DM만 카운트하세요!
+        setNotiCount(data.notificationCount); // ❤️ 좋아요/댓글 등 일반 알림도 DB에서 분리해서 반환
+      }
       });
   };
 
@@ -188,83 +190,85 @@ function Main() {
     socket.onopen = () => {};
 
     socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+  const data = JSON.parse(event.data);
 
-      if (data.type === "like-update") {
-        const { postId, likeCount } = data;
-        setPosts((prev) =>
-          prev.map((post) =>
-            post.postId === Number(postId) ? { ...post, likeCount } : post
-          )
-        );
-        if (selectedPost?.postId === Number(postId)) {
-          setSelectedPost((prev) => ({ ...prev, likeCount }));
-        }
-      }
+  if (data.type === "like-update") {
+    const { postId, likeCount } = data;
+    setPosts((prev) =>
+      prev.map((post) =>
+        post.postId === Number(postId) ? { ...post, likeCount } : post
+      )
+    );
+    if (selectedPost?.postId === Number(postId)) {
+      setSelectedPost((prev) => ({ ...prev, likeCount }));
+    }
+  }
 
-      // ✅ follow-request 메시지 전용 처리
-      if (data.type === "follow-request") {
-        setNotifications((prev) => [
-          {
-            type: "follow_request",
-            notiId: Date.now(),
-            msg: `${data.fromUser.nick}님이 당신을 팔로우 요청했습니다.`,
-            extraData: { followId: data.followId },
-            fromUser: data.fromUser,
-            createdAt: data.createdAt,
-          },
-          ...prev,
-        ]);
-        refreshUnreadCount();
-      }
+  if (data.type === "dm") {
+    setUnreadCount((prev) => prev + 1); // ✅ DM 알림만 여기
+  }
 
-      // ✅ 일반 알림 메시지 처리
-      if (data.type === "notification") {
-        setNotifications((prev) => [
-          {
-            type: "generic",
-            notiId: Date.now(),
-            msg: data.message,
-            createdAt: new Date().toISOString(),
-          },
-          ...prev,
-        ]);
-        refreshUnreadCount();
-        if (showNotifications) {
-          setNotificationKey(Date.now()); // NotificationPanel key 갱신
-        }
-      }
-      if (data.type === "follow-accepted") {
-        setNotifications((prev) => [
-          {
-            type: "follow_accept",
-            notiId: Date.now(),
-            msg: data.message,
-            fromUser: data.fromUser,
-            createdAt: data.createdAt,
-          },
-          ...prev,
-        ]);
-        refreshUnreadCount();
-        if (showNotifications) {
-          setNotificationKey(Date.now()); 
-        }
-      }
-      if (data.type === "follow-rejected") {
-        setNotifications((prev) => [
-          {
-            type: "follow_reject",
-            notiId: Date.now(),
-            msg: data.message,
-            fromUser: data.fromUser,
-            createdAt: data.createdAt,
-          },
-          ...prev,
-        ]);
-        refreshUnreadCount();
-        setNotificationKey(Date.now());
-      }
-    };
+  if (data.type === "notification") {
+    setNotifications((prev) => [
+      {
+        type: "generic",
+        notiId: Date.now(),
+        msg: data.message,
+        createdAt: new Date().toISOString(),
+      },
+      ...prev,
+    ]);
+    setNotiCount((prev) => prev + 1);
+    if (showNotifications) setNotificationKey(Date.now());
+  }
+
+  if (data.type === "follow-request") {
+    setNotifications((prev) => [
+      {
+        type: "follow_request",
+        notiId: Date.now(),
+        msg: `${data.fromUser.nick}님이 당신을 팔로우 요청했습니다.`,
+        extraData: { followId: data.followId },
+        fromUser: data.fromUser,
+        createdAt: data.createdAt,
+      },
+      ...prev,
+    ]);
+    setNotiCount((prev) => prev + 1);
+    if (showNotifications) setNotificationKey(Date.now());
+  }
+
+  if (data.type === "follow-accepted") {
+    setNotifications((prev) => [
+      {
+        type: "follow_accept",
+        notiId: Date.now(),
+        msg: data.message,
+        fromUser: data.fromUser,
+        createdAt: data.createdAt,
+      },
+      ...prev,
+    ]);
+    setNotiCount((prev) => prev + 1);
+    if (showNotifications) setNotificationKey(Date.now());
+  }
+
+  if (data.type === "follow-rejected") {
+    setNotifications((prev) => [
+      {
+        type: "follow_reject",
+        notiId: Date.now(),
+        msg: data.message,
+        fromUser: data.fromUser,
+        createdAt: data.createdAt,
+      },
+      ...prev,
+    ]);
+    setNotiCount((prev) => prev + 1);
+    if (showNotifications) setNotificationKey(Date.now());
+  }
+};
+
 
     socket.onclose = () => {};
     return () => socket.close();
@@ -302,8 +306,12 @@ function Main() {
     >
       <Sidebar
         onUploadClick={() => setUploadOpen(true)}
-        onNotiClick={() => setShowNotifications(true)}
+        onNotiClick={() => {
+          setShowNotifications(true);
+          setNotiCount(0);
+        }}
         unreadCount={unreadCount}
+        notiCount={notiCount}
       />
       <NotificationPanel
         key={notificationKey} // 👈 이 줄만 추가!
