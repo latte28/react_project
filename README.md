@@ -44,6 +44,7 @@ React, Express, MySQL을 활용하여 개발한 **인스타그램 스타일의 S
 
 ![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)
 ![WebSocket](https://img.shields.io/badge/WebSocket-010101?style=for-the-badge&logo=websocket&logoColor=white)
+![RESTful API](https://img.shields.io/badge/RESTful%20API-010101?style=for-the-badge&logo=api&logoColor=white)
 
 
 ---
