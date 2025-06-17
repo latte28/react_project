@@ -1,4 +1,4 @@
-# React & Express 기반 SNS
+# Peture (React & Express 기반 SNS)
 
 ![image](https://github.com/user-attachments/assets/c70c265c-62ef-4700-b115-51382c5c3978)
 
