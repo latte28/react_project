@@ -19,7 +19,7 @@ if (!isLightOnlyPage) {
   document.body.classList.remove("dark");
   document.body.classList.add("light");
 }
-
+  // 임시 테스트
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <BrowserRouter>
