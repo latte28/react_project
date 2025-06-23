@@ -8,11 +8,23 @@ router.get("/unread-count", auth, async (req, res) => {
   const userId = req.user.userId;
 
   try {
-    const [[{ count }]] = await db.query(
-      "SELECT COUNT(*) AS count FROM notis WHERE userId = ? AND isRead = 0",
+    // 일반 알림 (좋아요, 댓글, 팔로우 등)
+    const [[{ notiCount }]] = await db.query(
+      "SELECT COUNT(*) AS notiCount FROM notis WHERE userId = ? AND isRead = 0 AND type != 'dm'",
       [userId]
     );
-    res.json({ success: true, count });
+
+    // DM 알림
+    const [[{ dmCount }]] = await db.query(
+      "SELECT COUNT(*) AS dmCount FROM notis WHERE userId = ? AND isRead = 0 AND type = 'dm'",
+      [userId]
+    );
+
+    res.json({
+      success: true,
+      notificationCount: notiCount,
+      dmCount: dmCount,
+    });
   } catch (err) {
     console.error("❌ 알림 개수 조회 오류:", err);
     res.status(500).json({ success: false });

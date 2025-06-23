@@ -1,4 +1,3 @@
-// ✅ DmPage.js (최종 수정본)
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useLocation } from "react-router-dom";
 import { Box, Typography, Button } from "@mui/material";
@@ -23,7 +22,7 @@ function DmPage({ onUploadClick, onNotiClick }) {
   const token = localStorage.getItem("token");
   const currentUserId = jwtDecode(token).userId;
 
-  // ✅ 초기 DM/알림 개수 가져오기
+  // ✅ 초기 알림/DM 읽지 않은 개수
   useEffect(() => {
     fetch("http://localhost:3003/dm/unread-count", {
       headers: { Authorization: `Bearer ${token}` },
@@ -38,7 +37,7 @@ function DmPage({ onUploadClick, onNotiClick }) {
       .then((data) => data.success && setNotiCount(data.count));
   }, [token]);
 
-  // ✅ 실시간 WebSocket 알림 수신
+  // ✅ WebSocket 실시간 수신
   useEffect(() => {
     const socket = new WebSocket(`ws://localhost:3003?token=${token}`);
 
@@ -59,7 +58,20 @@ function DmPage({ onUploadClick, onNotiClick }) {
     return () => socket.close();
   }, [token, roomId, currentUserId]);
 
-  // ✅ DM 읽음 시 감소
+  // ✅ 채팅방 진입 시 읽음 처리 API 호출
+  useEffect(() => {
+    if (roomId) {
+      fetch(`http://localhost:3003/dm/mark-read/${roomId}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+      }).then(() => {
+        // 읽음 후 count 감소 (서버에서도 처리되었기 때문에 반영)
+        setUnreadCount((prev) => (prev > 0 ? prev - 1 : 0));
+      });
+    }
+  }, [roomId, token]);
+
+  // ✅ 미사용 상태 유지
   const handleUnreadIncrement = useCallback(() => {
     setUnreadCount((prev) => prev + 1);
   }, []);
@@ -130,7 +142,11 @@ function DmPage({ onUploadClick, onNotiClick }) {
               </Typography>
               <Button
                 variant="contained"
-                sx={{ mt: 2, backgroundColor: "#3797f0", "&:hover": { backgroundColor: "#318ae0" } }}
+                sx={{
+                  mt: 2,
+                  backgroundColor: "#3797f0",
+                  "&:hover": { backgroundColor: "#318ae0" },
+                }}
                 onClick={() => setIsNewMessageOpen(true)}
               >
                 메시지 보내기

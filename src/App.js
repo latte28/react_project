@@ -11,14 +11,41 @@ import FindPassword from "./components/FindPassword";
 import ResetPassword from "./components/ResetPassword";
 import KakaoCallback from "./components/KakaoCallback";
 import ProfileEdit from "./components/ProfileEdit";
-import NotificationPanel from "./components/NotificationPanel"; // 알림 패널 import
+import NotificationPanel from "./components/NotificationPanel";
 import { useDarkMode } from "./components/DarkModeContext";
 import DmPage from "./components/DmPage";
 
 function App() {
   const { darkMode } = useDarkMode();
   const location = useLocation();
-  const [showNotifications, setShowNotifications] = useState(false); // 알림 패널 상태
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  // ✅ DM 알림 상태
+  const [unreadCount, setUnreadCount] = useState(0); // 서버에서 가져온 알림 수
+  const [dmSocketCount, setDmSocketCount] = useState(0); // WebSocket으로 받은 알림 수
+
+  // ✅ 서버에서 안읽은 메시지 수 가져오기
+  const refreshUnreadCount = () => {
+    const token = localStorage.getItem("token");
+    fetch("http://localhost:3003/notis/unread-count", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setUnreadCount(isNaN(data.dmCount) ? 0 : data.dmCount);
+        } else {
+          setUnreadCount(0);
+        }
+      })
+      .catch(() => setUnreadCount(0));
+  };
+
+  // ✅ 채팅방 들어가서 읽음 처리 후 실행
+  const handleUnreadClear = () => {
+    setDmSocketCount(0);       // WebSocket 알림 초기화
+    refreshUnreadCount();      // 서버 값도 다시 요청
+  };
 
   // 다크모드 제외 경로
   const lightOnlyRoutes = [
@@ -45,7 +72,6 @@ function App() {
     <Box sx={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
       <CssBaseline />
 
-      {/* ✅ 알림 패널은 항상 전역 위치에 고정 */}
       <NotificationPanel
         open={showNotifications}
         onClose={() => setShowNotifications(false)}
@@ -55,11 +81,25 @@ function App() {
         <Routes>
           <Route
             path="/"
-            element={<Main setShowNotifications={setShowNotifications} />}
+            element={
+              <Main
+                setShowNotifications={setShowNotifications}
+                unreadCount={unreadCount + dmSocketCount} // ✅ 표시용 알림 수
+                refreshUnreadCount={refreshUnreadCount}
+                setDmSocketCount={setDmSocketCount}
+              />
+            }
           />
           <Route
             path="/main"
-            element={<Main setShowNotifications={setShowNotifications} />}
+            element={
+              <Main
+                setShowNotifications={setShowNotifications}
+                unreadCount={unreadCount + dmSocketCount}
+                refreshUnreadCount={refreshUnreadCount}
+                setDmSocketCount={setDmSocketCount}
+              />
+            }
           />
           <Route path="/login" element={<Login />} />
           <Route path="/join" element={<Join />} />
@@ -76,7 +116,8 @@ function App() {
               <DmPage
                 onNotiClick={() => setShowNotifications(true)}
                 onUploadClick={() => console.log("업로드 클릭 처리")}
-                unreadCount={0} // 나중에 알림 수 연동되면 바꿔
+                unreadCount={unreadCount + dmSocketCount}
+                onUnreadClear={handleUnreadClear}
               />
             }
           />
@@ -86,7 +127,8 @@ function App() {
               <DmPage
                 onNotiClick={() => setShowNotifications(true)}
                 onUploadClick={() => console.log("업로드 클릭 처리")}
-                unreadCount={0}
+                unreadCount={unreadCount + dmSocketCount}
+                onUnreadClear={handleUnreadClear}
               />
             }
           />

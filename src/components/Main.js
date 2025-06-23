@@ -32,6 +32,7 @@ import FeedUploadModal from "./FeedUploadModal";
 import FeedDetailModal from "./FeedDetailModal";
 import { useNavigate } from "react-router-dom";
 import "../App.css";
+import DmChat from "./DmChat";
 
 function Main() {
   const [posts, setPosts] = useState([]);
@@ -50,6 +51,13 @@ function Main() {
   const [userInfo, setUserInfo] = useState(null); // 로그인 정보
   const [notificationKey, setNotificationKey] = useState(Date.now());
   const [notiCount, setNotiCount] = useState(0);
+  const [dmSocketCount, setDmSocketCount] = useState(0);
+  const handleUnreadClear = () => {
+    setDmSocketCount(0);      // WebSocket 알림 누적값 초기화
+    refreshUnreadCount();     // 서버에서 최신 unreadCount 불러오기
+  };
+  const [dmRoomId, setDmRoomId] = useState(null);
+  const [dmToUserId, setDmToUserId] = useState(null);
   const fetchPosts = () => {
     const token = localStorage.getItem("token");
 
@@ -139,15 +147,26 @@ function Main() {
 
   const refreshUnreadCount = () => {
     const token = localStorage.getItem("token");
+
     fetch("http://localhost:3003/notis/unread-count", {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
-        setUnreadCount(data.dmCount); // ✅ 오직 DM만 카운트하세요!
-        setNotiCount(data.notificationCount); // ❤️ 좋아요/댓글 등 일반 알림도 DB에서 분리해서 반환
-      }
+          setUnreadCount(isNaN(data.dmCount) ? 0 : data.dmCount);
+          setNotiCount(
+            isNaN(data.notificationCount) ? 0 : data.notificationCount
+          );
+        } else {
+          setUnreadCount(0);
+          setNotiCount(0);
+        }
+      })
+      .catch((err) => {
+        console.error("🔴 알림 수 불러오기 실패:", err);
+        setUnreadCount(0);
+        setNotiCount(0);
       });
   };
 
@@ -187,90 +206,89 @@ function Main() {
 
     const socket = new WebSocket(`ws://localhost:3003?token=${token}`);
 
-    socket.onopen = () => {};
+    socket.onopen = () => { };
 
     socket.onmessage = (event) => {
-  const data = JSON.parse(event.data);
+      const data = JSON.parse(event.data);
 
-  if (data.type === "like-update") {
-    const { postId, likeCount } = data;
-    setPosts((prev) =>
-      prev.map((post) =>
-        post.postId === Number(postId) ? { ...post, likeCount } : post
-      )
-    );
-    if (selectedPost?.postId === Number(postId)) {
-      setSelectedPost((prev) => ({ ...prev, likeCount }));
-    }
-  }
+      if (data.type === "like-update") {
+        const { postId, likeCount } = data;
+        setPosts((prev) =>
+          prev.map((post) =>
+            post.postId === Number(postId) ? { ...post, likeCount } : post
+          )
+        );
+        if (selectedPost?.postId === Number(postId)) {
+          setSelectedPost((prev) => ({ ...prev, likeCount }));
+        }
+      }
 
-  if (data.type === "dm") {
-    setUnreadCount((prev) => prev + 1); // ✅ DM 알림만 여기
-  }
+      if (data.type === "dm") {
+        setDmSocketCount((prev) => prev + 1); // ✅ 소켓으로 온 알림은 따로 누적
+      }
 
-  if (data.type === "notification") {
-    setNotifications((prev) => [
-      {
-        type: "generic",
-        notiId: Date.now(),
-        msg: data.message,
-        createdAt: new Date().toISOString(),
-      },
-      ...prev,
-    ]);
-    setNotiCount((prev) => prev + 1);
-    if (showNotifications) setNotificationKey(Date.now());
-  }
+      if (data.type === "notification") {
+        setNotifications((prev) => [
+          {
+            type: "generic",
+            notiId: Date.now(),
+            msg: data.message,
+            createdAt: new Date().toISOString(),
+          },
+          ...prev,
+        ]);
+        setNotiCount((prev) => prev + 1);
+        if (showNotifications) setNotificationKey(Date.now());
+      }
 
-  if (data.type === "follow-request") {
-    setNotifications((prev) => [
-      {
-        type: "follow_request",
-        notiId: Date.now(),
-        msg: `${data.fromUser.nick}님이 당신을 팔로우 요청했습니다.`,
-        extraData: { followId: data.followId },
-        fromUser: data.fromUser,
-        createdAt: data.createdAt,
-      },
-      ...prev,
-    ]);
-    setNotiCount((prev) => prev + 1);
-    if (showNotifications) setNotificationKey(Date.now());
-  }
+      if (data.type === "follow-request") {
+        setNotifications((prev) => [
+          {
+            type: "follow_request",
+            notiId: Date.now(),
+            msg: `${data.fromUser.nick}님이 당신을 팔로우 요청했습니다.`,
+            extraData: { followId: data.followId },
+            fromUser: data.fromUser,
+            createdAt: data.createdAt,
+          },
+          ...prev,
+        ]);
+        setNotiCount((prev) => prev + 1);
+        if (showNotifications) setNotificationKey(Date.now());
+      }
 
-  if (data.type === "follow-accepted") {
-    setNotifications((prev) => [
-      {
-        type: "follow_accept",
-        notiId: Date.now(),
-        msg: data.message,
-        fromUser: data.fromUser,
-        createdAt: data.createdAt,
-      },
-      ...prev,
-    ]);
-    setNotiCount((prev) => prev + 1);
-    if (showNotifications) setNotificationKey(Date.now());
-  }
+      if (data.type === "follow-accepted") {
+        setNotifications((prev) => [
+          {
+            type: "follow_accept",
+            notiId: Date.now(),
+            msg: data.message,
+            fromUser: data.fromUser,
+            createdAt: data.createdAt,
+          },
+          ...prev,
+        ]);
+        setNotiCount((prev) => prev + 1);
+        if (showNotifications) setNotificationKey(Date.now());
+      }
 
-  if (data.type === "follow-rejected") {
-    setNotifications((prev) => [
-      {
-        type: "follow_reject",
-        notiId: Date.now(),
-        msg: data.message,
-        fromUser: data.fromUser,
-        createdAt: data.createdAt,
-      },
-      ...prev,
-    ]);
-    setNotiCount((prev) => prev + 1);
-    if (showNotifications) setNotificationKey(Date.now());
-  }
-};
+      if (data.type === "follow-rejected") {
+        setNotifications((prev) => [
+          {
+            type: "follow_reject",
+            notiId: Date.now(),
+            msg: data.message,
+            fromUser: data.fromUser,
+            createdAt: data.createdAt,
+          },
+          ...prev,
+        ]);
+        setNotiCount((prev) => prev + 1);
+        if (showNotifications) setNotificationKey(Date.now());
+      }
+    };
 
-
-    socket.onclose = () => {};
+    socket.onclose = () => { };
     return () => socket.close();
   }, [selectedPost?.postId, showNotifications]);
 
@@ -310,9 +328,16 @@ function Main() {
           setShowNotifications(true);
           setNotiCount(0);
         }}
-        unreadCount={unreadCount}
+        unreadCount={unreadCount + dmSocketCount}
         notiCount={notiCount}
       />
+      {dmRoomId && dmToUserId && (
+        <DmChat
+          roomId={dmRoomId}
+          toUserId={dmToUserId}
+          onUnreadClear={handleUnreadClear}
+        />
+      )}
       <NotificationPanel
         key={notificationKey} // 👈 이 줄만 추가!
         open={showNotifications}
@@ -703,10 +728,21 @@ function Main() {
                   @{user.nick}
                 </Typography>
               </Box>
-              <FollowButton
-                myUserId={userInfo.userId}
-                targetUserId={user.userId}
-              />
+              <IconButton
+                onClick={() => {
+                  setDmRoomId(`dm-${Math.min(user.userId, userInfo.userId)}-${Math.max(user.userId, userInfo.userId)}`);
+                  setDmToUserId(user.userId);
+                }}
+              >
+                <SendIcon sx={{ fontSize: 20 }} />
+              </IconButton>
+              
+              {userInfo && (
+                <FollowButton
+                  myUserId={userInfo.userId}
+                  targetUserId={user.userId}
+                />
+              )}
             </Box>
           ))}
         </Box>

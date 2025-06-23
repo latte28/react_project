@@ -54,6 +54,7 @@ app.use("/dm", dmRouter);
 server.on("upgrade", (req, socket, head) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const token = url.searchParams.get("token");
+  const SECRET_KEY = "your_secret_key";
 
   if (!token) {
     console.error("❌ 토큰 누락!");
@@ -62,13 +63,15 @@ server.on("upgrade", (req, socket, head) => {
   }
 
   try {
-    const decoded = jwt.verify(token, "your_secret_key");
+    const decoded = jwt.verify(token, SECRET_KEY);
+    console.log("✅ JWT 디코딩 결과:", decoded);
     req.userId = decoded.userId;
 
     wss.handleUpgrade(req, socket, head, (ws) => {
       wss.emit("connection", ws, req);
     });
   } catch (err) {
+    console.error("❌ JWT 검증 실패:", err.message);
     socket.destroy();
   }
 });

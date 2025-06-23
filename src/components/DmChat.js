@@ -6,7 +6,12 @@ import { jwtDecode } from "jwt-decode";
 import DmMessageBubble from "./DmMessageBubble";
 import { useDarkMode } from "./DarkModeContext";
 
-function DmChat({ roomId, toUserId: initialToUserId, onUnreadIncrement, onUnreadClear }) {
+function DmChat({
+  roomId,
+  toUserId: initialToUserId,
+  onUnreadIncrement,
+  onUnreadClear,
+}) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [file, setFile] = useState(null);
@@ -37,24 +42,31 @@ function DmChat({ roomId, toUserId: initialToUserId, onUnreadIncrement, onUnread
     }
   }, [roomId, initialToUserId, token]);
 
-  // 메시지 & 읽음 처리
+  // 메시지 조회 및 수동 읽음 처리
   useEffect(() => {
-    fetch(`http://localhost:3003/dm/messages/${roomId}`, {
-      headers: { Authorization: "Bearer " + token },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) setMessages(data.messages);
+    const loadMessages = async () => {
+      const res = await fetch(`http://localhost:3003/dm/messages/${roomId}`, {
+        headers: { Authorization: "Bearer " + token },
       });
+      const data = await res.json();
+      if (data.success) setMessages(data.messages);
+    };
 
-    fetch(`http://localhost:3003/dm/mark-read/${roomId}`, {
-      method: "PUT",
-      headers: { Authorization: "Bearer " + token },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && onUnreadClear) onUnreadClear();
+    const markAsRead = async () => {
+      const res = await fetch(`http://localhost:3003/dm/mark-read/${roomId}`, {
+        method: "PUT",
+        headers: { Authorization: "Bearer " + token },
       });
+      const data = await res.json();
+
+      // ✅ 읽음 처리 성공 시, 안읽은 개수 다시 불러오기
+      if (data.success && onUnreadClear) {
+        onUnreadClear(); // 예: 전역 상태 갱신 or count 다시 fetch
+      }
+    };
+
+    loadMessages();
+    markAsRead();
   }, [roomId, token, onUnreadClear]);
 
   // WebSocket 연결
@@ -68,6 +80,7 @@ function DmChat({ roomId, toUserId: initialToUserId, onUnreadIncrement, onUnread
       socket.onopen = () => {
         console.log("🟢 WebSocket 연결됨");
         setIsSocketReady(true);
+        socket.send(JSON.stringify({ type: "ping" }));
       };
 
       socket.onclose = (e) => {
@@ -98,19 +111,16 @@ function DmChat({ roomId, toUserId: initialToUserId, onUnreadIncrement, onUnread
                 ...data,
                 createdAt: data.createdAt || new Date().toISOString(),
               },
-            ]);
-            fetch(`http://localhost:3003/dm/mark-read/${roomId}`, {
-              method: "PUT",
-              headers: { Authorization: `Bearer ${token}` },
-            }).then(() => {
-              if (onUnreadClear) onUnreadClear();
-            });
+            ]); 
           } else if (data.toUserId === currentUserId) {
             if (onUnreadIncrement) onUnreadIncrement();
           }
         }
 
-        if (data.type === "dm-delete" && String(data.roomId) === String(roomId)) {
+        if (
+          data.type === "dm-delete" &&
+          String(data.roomId) === String(roomId)
+        ) {
           setMessages((prev) =>
             prev.filter((msg) => msg.messageId !== data.messageId)
           );
@@ -134,7 +144,10 @@ function DmChat({ roomId, toUserId: initialToUserId, onUnreadIncrement, onUnread
 
     return () => {
       clearTimeout(reconnectTimer);
-      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      if (
+        socketRef.current &&
+        socketRef.current.readyState === WebSocket.OPEN
+      ) {
         socketRef.current.close(4001, "component unmounted");
       }
       socketRef.current = null;
@@ -194,7 +207,8 @@ function DmChat({ roomId, toUserId: initialToUserId, onUnreadIncrement, onUnread
 
   const handleDeleteMessage = async (messageId) => {
     const socket = socketRef.current;
-    if (!socket || !isSocketReady || socket.readyState !== WebSocket.OPEN) return;
+    if (!socket || !isSocketReady || socket.readyState !== WebSocket.OPEN)
+      return;
 
     const msg = {
       type: "dm-delete",
@@ -274,7 +288,14 @@ function DmChat({ roomId, toUserId: initialToUserId, onUnreadIncrement, onUnread
               sendMessage();
             }
           }}
-          placeholder="메시지를 입력하세요"
+          disabled={!toUserId || !isSocketReady}
+          placeholder={
+            !toUserId
+              ? "상대방 정보를 불러오는 중..."
+              : !isSocketReady
+              ? "서버 연결 중..."
+              : "메시지를 입력하세요"
+          }
           InputProps={{
             sx: {
               backgroundColor: inputBg,
@@ -288,11 +309,21 @@ function DmChat({ roomId, toUserId: initialToUserId, onUnreadIncrement, onUnread
             },
             endAdornment: (
               <InputAdornment position="end">
-                <IconButton onClick={() => fileInputRef.current?.click()}>
+                <IconButton
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={!toUserId}
+                >
                   <ImageIcon sx={{ color: textColor }} />
                 </IconButton>
-                <IconButton onClick={sendMessage} disabled={!isSocketReady}>
-                  <SendIcon sx={{ color: isSocketReady ? "#3797f0" : "#aaa" }} />
+                <IconButton
+                  onClick={sendMessage}
+                  disabled={!toUserId || !isSocketReady}
+                >
+                  <SendIcon
+                    sx={{
+                      color: toUserId && isSocketReady ? "#3797f0" : "#aaa",
+                    }}
+                  />
                 </IconButton>
               </InputAdornment>
             ),

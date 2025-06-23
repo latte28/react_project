@@ -1,25 +1,28 @@
-// ✅ 실시간 DM 수신 + 읽음 상태 반영용 WebSocket 서버 전체 코드
+// ✅ 실시간 DM 수신 + 읽음 상태 반영용 WebSocket 서버 (다중 연결 허용)
 const WebSocket = require("ws");
 const jwt = require("jsonwebtoken");
 const db = require("./db");
 
 const wss = new WebSocket.Server({ noServer: true });
-const clients = new Map(); // userId → WebSocket
+const clients = new Map(); // userId → WebSocket[]
 
 wss.on("connection", (ws, req) => {
   const userId = req.userId;
+  console.log("🧹 연결됨:", userId);
 
-  if (clients.has(userId)) {
-    const oldWs = clients.get(userId);
-    if (oldWs && oldWs.readyState === WebSocket.OPEN) {
-      oldWs.terminate();
-    }
+  if (!clients.has(userId)) {
+    clients.set(userId, []);
   }
-  clients.set(userId, ws);
+  clients.get(userId).push(ws);
 
   ws.on("message", async (message) => {
     try {
       const data = JSON.parse(message);
+
+      if (data.type === "ping") {
+        ws.send(JSON.stringify({ type: "pong" }));
+        return;
+      }
 
       // ✅ 1. 메시지 전송 처리
       if (data.type === "dm") {
@@ -29,7 +32,14 @@ wss.on("connection", (ws, req) => {
           `INSERT INTO dm_messages 
            (roomId, senderId, toUserId, content, mediaUrl, mediaType, isRead)
            VALUES (?, ?, ?, ?, ?, ?, FALSE)`,
-          [roomId, userId, toUserId, content || "", mediaUrl || null, mediaType || null]
+          [
+            roomId,
+            userId,
+            toUserId,
+            content || "",
+            mediaUrl || null,
+            mediaType || null,
+          ]
         );
 
         const msg = {
@@ -46,15 +56,21 @@ wss.on("connection", (ws, req) => {
         };
 
         // 수신자에게 전송
-        const toClient = clients.get(toUserId);
-        if (toClient && toClient.readyState === WebSocket.OPEN) {
-          toClient.send(JSON.stringify(msg));
+        if (clients.has(toUserId)) {
+          clients.get(toUserId).forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify(msg));
+            }
+          });
         }
 
         // 본인에게 echo
-        const fromClient = clients.get(userId);
-        if (fromClient && fromClient.readyState === WebSocket.OPEN) {
-          fromClient.send(JSON.stringify(msg));
+        if (clients.has(userId)) {
+          clients.get(userId).forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify(msg));
+            }
+          });
         }
       }
 
@@ -68,7 +84,9 @@ wss.on("connection", (ws, req) => {
         );
         if (rows.length === 0) return;
 
-        await db.query("DELETE FROM dm_messages WHERE messageId = ?", [messageId]);
+        await db.query("DELETE FROM dm_messages WHERE messageId = ?", [
+          messageId,
+        ]);
 
         const deleteMsg = {
           type: "dm-delete",
@@ -76,14 +94,19 @@ wss.on("connection", (ws, req) => {
           roomId,
         };
 
-        const [roomRows] = await db.query("SELECT * FROM dm_rooms WHERE roomId = ?", [roomId]);
+        const [roomRows] = await db.query(
+          "SELECT * FROM dm_rooms WHERE roomId = ?",
+          [roomId]
+        );
         const { userA, userB } = roomRows[0];
-        const targetId = userA === userId ? userB : userA;
 
-        [userId, targetId].forEach((uid) => {
-          const client = clients.get(uid);
-          if (client && client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify(deleteMsg));
+        [userA, userB].forEach((uid) => {
+          if (clients.has(uid)) {
+            clients.get(uid).forEach((client) => {
+              if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify(deleteMsg));
+              }
+            });
           }
         });
       }
@@ -97,18 +120,18 @@ wss.on("connection", (ws, req) => {
           [roomId, userId]
         );
 
-        // 수신자(=보낸 사람)에게 알림 (optional)
         const readConfirm = {
           type: "dm-read",
           roomId,
           readerId: userId,
         };
 
-        // 모든 접속자에게 알림 전송
-        for (const [uid, client] of clients.entries()) {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify(readConfirm));
-          }
+        for (const [uid, clientList] of clients.entries()) {
+          clientList.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify(readConfirm));
+            }
+          });
         }
       }
     } catch (err) {
@@ -117,10 +140,14 @@ wss.on("connection", (ws, req) => {
   });
 
   ws.on("close", () => {
-    for (const [key, value] of clients.entries()) {
-      if (value === ws) {
-        clients.delete(key);
-        break;
+    console.log("❎ 연결 종료:", userId);
+    if (clients.has(userId)) {
+      clients.set(
+        userId,
+        clients.get(userId).filter((client) => client !== ws)
+      );
+      if (clients.get(userId).length === 0) {
+        clients.delete(userId);
       }
     }
   });
@@ -132,9 +159,12 @@ wss.on("connection", (ws, req) => {
 
 // ✅ 서버가 특정 유저에게 직접 메시지 보내기
 function sendToUser(userId, message) {
-  const client = clients.get(userId);
-  if (client && client.readyState === WebSocket.OPEN) {
-    client.send(JSON.stringify(message));
+  if (clients.has(userId)) {
+    clients.get(userId).forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(message));
+      }
+    });
   }
 }
 
